@@ -82,9 +82,6 @@ http://localhost:8000/test-api.html
 3. Branch 選擇：main / (root)
 4. 點擊 Save，等待 1-3 分鐘
 
-## 📱 Netlify 部署（更簡單）
-
-前往 https://app.netlify.com/drop，拖曳整個資料夾即可！
 
 ## 🐛 故障排除
 
