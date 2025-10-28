@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neurosynth Explorer - 神經科學術語查詢系統</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    /* 自訂樣式 - 科幻霧氣感 */
+    .term-card {
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .term-card:hover {
+      transform: translateY(-6px) scale(1.03);
+      box-shadow: 0 20px 40px rgba(6, 182, 212, 0.3), 0 0 30px rgba(6, 182, 212, 0.15);
+      border-color: rgba(6, 182, 212, 0.5);
+      background: rgba(15, 23, 42, 0.85);
+    }
+    .loading {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    
+    /* 霧氣效果 */
+    .fog-effect {
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+    
+    /* Tab 切換樣式 */
+    .tab-button {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .tab-button::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #06b6d4, transparent);
+      transition: all 0.3s ease;
+      transform: translateX(-50%);
+    }
+    .tab-button.active::after {
+      width: 100%;
+    }
+    .tab-button.active {
+      background: rgba(6, 182, 212, 0.15);
+      color: #67e8f9;
+      border-color: rgba(6, 182, 212, 0.4);
+    }
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.4s ease-in;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* 自訂滾動條樣式 - 冰冷科幻風 */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(6, 182, 212, 0.4), rgba(6, 182, 212, 0.6));
+      border-radius: 4px;
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, rgba(6, 182, 212, 0.6), rgba(6, 182, 212, 0.8));
+    }
+    
+    /* Firefox 滾動條樣式 */
+    .custom-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(6, 182, 212, 0.5) rgba(15, 23, 42, 0.6);
+    }
+    
+    /* 自動完成建議項目樣式 */
+    .autocomplete-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(6, 182, 212, 0.1);
+      transition: all 0.2s ease;
+    }
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+    .autocomplete-item:hover,
+    .autocomplete-item.active {
+      background: rgba(6, 182, 212, 0.15);
+      color: #67e8f9;
+      padding-left: 20px;
+    }
+    .autocomplete-match {
+      color: #22d3ee;
+      font-weight: 500;
+    }
+    
+    /* 導航列動畫效果 */
+    @keyframes glow {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.7; }
+    }
+    
+    .nav-container {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .nav-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%);
+      transform: translate(-50%, -50%);
+      animation: glow 6s ease-in-out infinite;
+      pointer-events: none;
+    }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22d3ee;
+      box-shadow: 0 0 10px #22d3ee, 0 0 20px #22d3ee;
+      animation: glow 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 min-h-screen">
+  
+  <!-- 導航列 - 簡化版 -->
+  <nav class="nav-container relative bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-white shadow-2xl border-b border-cyan-500/20">
+    <!-- 背景光暈效果（柔和） -->
+    <div class="nav-glow"></div>
+    
+    <!-- 主要內容 -->
+    <div class="container mx-auto px-8 py-7 relative z-10">
+      <!-- 頂部狀態列 -->
+      <div class="flex items-center justify-between mb-5 text-xs">
+        <div class="flex items-center gap-3 text-slate-300/60 uppercase tracking-widest">
+          <span class="status-indicator"></span>
+          <span>SYSTEM ONLINE</span>
+          <span class="text-slate-400/30">|</span>
+          <span class="text-slate-300/45">v2.0.1</span>
+        </div>
+        <div class="text-slate-300/60 uppercase tracking-widest font-mono">
+          <span class="text-slate-400/30">[</span>
+          NTU NEUROSYNTH
+          <span class="text-slate-400/30">]</span>
+        </div>
+      </div>
+      
+      <!-- Logo 和標題 -->
+      <div class="text-center">
+        <div class="inline-flex items-center gap-4 mb-3">
+          <div class="text-6xl text-cyan-400/40">◈</div>
+          <h1 class="text-5xl md:text-6xl font-extralight tracking-[0.3em] uppercase bg-gradient-to-r from-cyan-300/70 via-cyan-100/80 to-cyan-300/70 bg-clip-text text-transparent">
+            NEUROSYNTH
+          </h1>
+          <div class="text-6xl text-cyan-400/40">◈</div>
+        </div>
+        <div class="flex items-center justify-center gap-3 text-cyan-300/55 text-sm tracking-[0.4em] uppercase">
+          <span class="text-cyan-400/35">━━━</span>
+          <span class="font-light">Neural Pattern Analysis Interface</span>
+          <span class="text-cyan-400/35">━━━</span>
+        </div>
+      </div>
+      
+      <!-- 底部裝飾線 -->
+      <div class="mt-5 flex items-center justify-center gap-2">
+        <div class="h-px w-20 bg-gradient-to-r from-transparent to-cyan-400/25"></div>
+        <div class="text-cyan-300/35 text-xs">◇</div>
+        <div class="h-px w-20 bg-gradient-to-l from-transparent to-cyan-400/25"></div>
+      </div>
+    </div>
+  </nav>  <!-- 主要內容 -->
+  <main class="container mx-auto px-6 py-8 max-w-full">
+    
+    <!-- API 狀態提示 -->
+    <div id="apiWarning" class="fixed top-6 right-6 z-50 bg-slate-950/95 border border-cyan-500/50 text-cyan-300 px-5 py-3 rounded shadow-2xl backdrop-blur-md">
+        <div class="flex items-center gap-2">
+          <div class="status-indicator"></div>
+          <p class="text-xs font-light tracking-wider uppercase">Connecting to API...</p>
+        </div>
+    </div>
+    
+    <!-- Tab 導航列 -->
+    <div class="mb-8">
+      <div class="bg-slate-900/60 rounded-sm shadow-2xl fog-effect overflow-hidden">
+        <div class="flex border-b border-cyan-500/20">
+          <button 
+            class="tab-button active flex-1 px-8 py-3 text-cyan-400/70 hover:text-cyan-300 hover:bg-slate-800/50 border-r border-cyan-500/20 font-light tracking-widest uppercase text-2xl transition-all"
+            data-tab="tab1"
+            onclick="switchTab('tab1')"
+          >
+            ALL TERMS
+          </button>
+          <button 
+            class="tab-button flex-1 px-8 py-3 text-cyan-400/70 hover:text-cyan-300 hover:bg-slate-800/50 border-r border-cyan-500/20 font-light tracking-widest uppercase text-2xl transition-all"
+            data-tab="tab2"
+            onclick="switchTab('tab2')"
+          >
+            TERM QUERY
+          </button>
+          <button 
+            class="tab-button flex-1 px-8 py-3 text-cyan-400/70 hover:text-cyan-300 hover:bg-slate-800/50 font-light tracking-widest uppercase text-2xl transition-all"
+            data-tab="tab3"
+            onclick="switchTab('tab3')"
+          >
+            RESEARCH QUERY
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 1: 所有術語列表 -->
+    <section id="tab1" class="tab-content active">
+      <div class="bg-slate-900/60 rounded-sm shadow-2xl p-8 fog-effect">
+        <h2 class="text-3xl font-light mb-6 text-white/90 tracking-wider uppercase">
+          ALL NEURAL TERMS
+        </h2>
+        <div id="termsList">
+          <p class="text-white/70 text-center py-8 tracking-wide uppercase">LOADING TERMS...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: 術語即時查詢 -->
+    <section id="tab2" class="tab-content">
+      <div class="bg-slate-900/60 rounded-sm shadow-2xl p-8 fog-effect">
+        <h2 class="text-3xl font-light text-white/90 mb-6 tracking-widest uppercase flex items-center">
+          TERM QUERY
+          <span class="ml-4 text-base font-normal text-white/60 lowercase">real-time search</span>
+        </h2>
+        
+        <div class="mb-6 relative ml-8">
+          <label for="termSearch" class="block text-2xl font-light text-cyan-200/90 mb-4 tracking-wide uppercase">
+            Enter Term Name
+          </label>
+          <input 
+            type="text" 
+            id="termSearch" 
+            placeholder="e.g. amygdala, prefrontal, hippocampus..."
+            class="w-full px-8 py-7 bg-slate-950/70 border border-cyan-400/30 rounded-sm text-cyan-100/90 text-2xl placeholder-cyan-400/40 focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-300/60 outline-none transition-all backdrop-blur-sm"
+            autocomplete="off"
+          />
+          <!-- 自動完成建議列表 -->
+          <div id="autocompleteList" class="absolute z-50 w-full mt-1 bg-slate-900/95 border border-slate-400/40 rounded-sm shadow-2xl backdrop-blur-md hidden max-h-64 overflow-y-auto custom-scrollbar">
+          </div>
+          <p class="mt-4 text-xl text-cyan-200/60 tracking-wide">
+            Real-time results as you type, no need to press Enter
+          </p>
+        </div>
+        
+        <div id="termResultContainer" class="mt-6 ml-8 p-4 bg-slate-950/50 rounded-sm min-h-32 border border-cyan-500/20 backdrop-blur-sm">
+          <p class="text-cyan-500/50 text-center tracking-wide">Start typing to view term information...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: 研究搜尋 -->
+    <section id="tab3" class="tab-content">
+      <div class="bg-slate-900/60 rounded-sm shadow-2xl p-8 fog-effect">
+        <h2 class="text-3xl font-light mb-6 text-white/90 tracking-wider uppercase flex items-center">
+          RESEARCH QUERY
+        </h2>
+        <div class="relative mb-6 ml-8">
+          <input 
+            type="text" 
+            id="queryInput" 
+            placeholder="Type query (e.g., amygdala not emotion, memory and visual)..."
+            class="w-full px-8 py-7 border border-cyan-400/30 rounded-sm focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-300/60 bg-slate-900/70 text-cyan-100/90 text-2xl placeholder-cyan-400/40 tracking-wide"
+            autocomplete="off"
+          >
+          <!-- 自動完成建議列表 -->
+          <div id="queryAutocompleteList" class="absolute z-50 w-full mt-1 bg-slate-900/95 border border-slate-400/40 rounded-sm shadow-2xl backdrop-blur-md hidden max-h-64 overflow-y-auto custom-scrollbar">
+          </div>
+        </div>
+        
+        <div class="space-y-3 ml-8">
+          <div class="text-xl text-white/75 tracking-wide">
+            <span class="font-mono bg-slate-900/70 px-4 py-3 rounded border border-slate-400/20 text-xl">and</span> = Must contain ALL terms
+            <span class="mx-2 text-white/50">·</span>
+            <span class="font-mono bg-slate-900/70 px-4 py-3 rounded border border-slate-400/20 text-xl">or</span> = May contain ANY term
+            <span class="mx-2 text-white/50">·</span>
+            <span class="font-mono bg-slate-900/70 px-4 py-3 rounded border border-slate-400/20 text-xl">not</span> = Must NOT contain term
+          </div>
+          <div class="text-xl text-white/55 tracking-wide">
+            Examples: 
+            <span class="font-mono text-white/75">memory and visual</span>,
+            <span class="font-mono text-white/75">amygdala not emotion</span>,
+            <span class="font-mono text-white/75">emotion or reward or fear</span>
+          </div>
+          <div class="text-xl text-white/45 tracking-wide italic">
+            Note: Use lowercase (and, or, not) with spaces between words.
+          </div>
+        </div>
+        <div id="queryResult" class="mt-6 ml-8"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 頁尾 -->
+      <!-- Footer -->
+    <footer class="bg-slate-950 text-cyan-400/60 py-6 mt-12 border-t border-cyan-500/20">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-sm tracking-wider uppercase">NEUROSYNTH FRONTEND | NEURAL DATA ANALYSIS SYSTEM</p>
+        </div>
+    </footer>
+
+  <!-- JavaScript -->
+  <script>
+    // API 基礎網址 (使用備用伺服器)
+    // 原伺服器: https://mil.psy.ntu.edu.tw:5000 (目前無法使用)
+    // 備用伺服器: https://hpc.psy.ntu.edu.tw:5000 (目前使用)
+    const API_BASE = 'https://hpc.psy.ntu.edu.tw:5000';
+    let useRealAPI = true;
+    let apiCheckDone = false;
+    
+    // 快取機制
+    let cachedTerms = null;
+    let cacheTimestamp = null;
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 分鐘快取
+    
+    // 完整神經術語列表 (3168 個術語，從 API 預先抓取並內嵌)
+    // 這樣就不用等待 API 載入，頁面立即可用！
+    const ALL_NEURAL_TERMS = ["aberrant","abilities","ability","able","abnormal","abnormalities","abnormality","absence","absent","abstract","abuse","acc","access","accompanied","accordance","according","accordingly","account","accounted","accounts","accumbens","accuracy","accurate","accurately","achieve","achieved","acoustic","acquired","acquisition","act","action","action observation","actions","activate","activates","activations","active","actively","activities","acts","actual","actually","acute","ad","adaptation","adapted","adaptive","add","addiction","addition","additional","additionally","addressed","adhd","adjacent","administered","administration","adolescence","adolescent","adolescents","adopted","adult","adulthood","adults","advance","advanced","advances","advantage","affect","affected","affecting","affective","affects","age","age controls","aged","age gender","age groups","age healthy","agent","ages","age sex","aging","agreement","aim","aimed","aims","al","alcohol","alff","algorithm","allele","allocation","allow","allowed","allowing","allows","alpha","alter","alteration","alterations","altered","alternating","alternative","alters","alzheimer","alzheimer disease","ambiguous","amnestic","amplitude","amplitude low","amplitudes","amygdala","amygdala anterior","amygdala hippocampus","amygdala insula","amygdala response","amygdala responses","analysed","analyses","analyze","analyzed","analyzed using","analyzing","anatomical","anatomically","anatomy","anger","angry","angular","angular gyrus","animal","animals","anisotropy","anisotropy fa","anterior","anterior cingulate","anterior hippocampus","anterior insula","anterior insular","anterior intraparietal","anterior medial","anterior posterior","anterior prefrontal","anterior superior","anterior temporal","anti","anticipation","anticipatory","anxiety","anxiety disorders","apart","aphasia","apparent","appear","appeared","appears","application","applied","apply","applying","appraisal","approach","approaches","appropriate","approximately","architecture","argue","arise","arithmetic","arm","arousal","arterial","arterial spin","articulatory","asd","asked","aspect","aspects","assess","assessed","assessed using","assessing","assessment","assessments","assigned","association","associations","associative","assume","assumed","assumption","asymmetry","atrophy","attempt","attempted","attend","attended","attending","attention","attentional","attentional control","attention deficit","attention network","attention task","attenuated","attenuation","attributed","attributes","attribution","atypical","audiovisual","auditory","auditory cortex","auditory stimuli","auditory visual","autism","autism spectrum","autobiographical","autobiographical memory","automated","automatic","automatically","autonomic","available","average","aversive","avoid","avoidance","awareness","away","axis","ba","ba 44","background","balance","band","bands","basal","basal ganglia","baseline","bases","basic","basis","bayesian","beginning","behavior","behavioral","behavioral evidence","behavioral level","behaviorally","behavioral measures","behavioral performance","behavioral responses","behaviors","behaviour","behavioural","belief","beliefs","believed","beneficial","benefit","benefits","best","beta","better","better understanding","bias","biased","biases","bilaterally","bilinguals","binding","biological","biomarker","biomarkers","bipolar","bipolar disorder","blind","block","block design","blocked","blocks","blood","blood flow","blood oxygen","blood oxygenation","bodily","body","bold","bold response","bold responses","bold signal","bold signals","brains","brainstem","brief","broad","broader","broca","brodmann","brodmann ba","button","calculated","calculation","called","callosum","candidate","canonical","capacity","capture","carried","carriers","case","cases","categorical","categories","categorization","category","caudal","caudate","caudate nucleus","causal","causality","causal modeling","cause","caused","causes","center","centered","central","central role","cerebellar","cerebellum","cerebral","cerebral blood","cerebral cortex","certain","challenge","challenges","challenging","change","changed","changing","character","characteristic","characteristics","characterization","characterize","characterized","characterizing","characters","childhood","children","children adolescents","chinese","choice","choices","choose","chosen","chronic","chronic pain","cingulate","cingulate cortex","cingulate cortices","cingulate gyrus","circuit","circuitry","circuits","clarify","class","classic","classical","classification","classified","clear","clearly","clinical","clinically","clips","close","closed","closely","cluster","clustering","clusters","code","coding","cognition","cognitive","cognitive control","cognitive deficits","cognitive emotional","cognitive function","cognitive functions","cognitive impairment","cognitively","cognitive neuroscience","cognitive performance","cognitive processes","cognitive task","cognitive tasks","coherence","coherent","cohort","collected","collectively","color","combination","combinations","combined","combining","common","commonly","communication","community","comparable","compare","comparing","comparisons","compatible","compensate","compensation","compensatory","competing","competition","complementary","complete","completed","completely","complex","complexity","component","component ica","components","composed","comprehension","comprehensive","comprised","compromised","compulsive","compulsive disorder","computation","computational","computed","concentration","concept","concepts","conceptual","concerning","conclude","conclusion","concomitant","concrete","concurrent","concurrently","condition","conditioned","conditioning","conditions","conductance","conducted","confidence","confirm","confirmed","conflict","conflicting","confounding","congruency","congruent","congruent incongruent","conjunction","connected","connection","connections","connectivity","connectivity amygdala","connectivity analyses","connectivity anterior","connectivity fc","connectivity networks","connectivity patterns","connectivity posterior","connectivity rsfc","connectivity using","conscious","consciousness","consecutive","consequence","consequences","consequently","consider","considerable","considered","considering","consisted","consistency","consistently","consisting","consists","consolidation","constant","constitute","constrained","constraints","construct","constructed","construction","consumption","contain","contained","containing","contains","content","contents","context","contexts","contextual","contingent","continuous","continuously","contralateral","contrary","contrast","contrasted","contrasting","contrasts","contribute","contributed","contributes","contributing","contribution","contributions","control","control condition","control conditions","control group","control groups","controlled","controlling","control network","control processes","controls","controls hc","controls hcs","controls using","control task","controversial","conventional","convergence","converging","conversely","conveyed","coordinates","coordination","core","corpus","corpus callosum","correct","corrected","correction","correctly","correlate","correlated","correlated negatively","correlated positively","correlates","correlating","correlation","correlation analyses","correlations","correspond","corresponded","correspondence","corresponding","cortex acc","cortex amygdala","cortex anterior","cortex ba","cortex bilaterally","cortex cerebellum","cortex dacc","cortex dlpfc","cortex dmpfc","cortex dorsal","cortex dorsolateral","cortex frontal","cortex hippocampus","cortex inferior","cortex insula","cortex involved","cortex lateral","cortex m1","cortex medial","cortex middle","cortex mpfc","cortex ofc","cortex parietal","cortex pcc","cortex pfc","cortex posterior","cortex ppc","cortex precuneus","cortex suggest","cortex superior","cortex supplementary","cortex thalamus","cortex ventral","cortex vlpfc","cortex vmpfc","cortical","cortical involved","cortical network","cortical networks","cortical subcortical","cortical thickness","cortices","cortico","cost","costs","coupled","coupling","course","courses","covariance","covaried","covert","craving","created","criteria","critical","critically","critical role","cross","cross modal","crossover","cross sectional","crucial","crucially","crucial role","crus","cue","cued","cues","cuneus","current","current functional","currently","dacc","daily","daily life","damage","dataset","datasets","date","day","days","deactivated","deactivation","deactivations","debate","debated","decision","decision making","decisions","decision task","decline","declines","decoding","decreases","decreasing","deep","default","default mode","default network","deficient","deficit","deficit hyperactivity","deficits","define","defined","degree","degrees","delay","delayed","delivered","demand","demanding","demands","dementia","demonstrate","demonstrated","demonstrates","demonstrating","density","depend","depended","dependence","depending","depends","depicting","depressed","depression","depressive","depressive disorder","deprivation","depth","derived","described","describing","design","designed","designs","despite","detailed","details","detect","detected","detecting","detection","detection task","determine","determined","determining","develop","developed","developing","development","developmental","diagnosed","diagnosis","diagnostic","did","did differ","differ","differed","difference","differential","differentially","differentiate","differentiated","differentiation","differently","differing","differs","difficult","difficulties","difficulty","diffusion","diffusion tensor","digit","dimension","dimensional","dimensions","diminished","direct","directed","direct evidence","direction","directions","directly","disability","discrete","discriminate","discriminated","discrimination","discrimination task","discriminative","discuss","discussed","discussion","disease","disease ad","disease pd","diseases","disentangle","disgust","disorder","disorder adhd","disorder mdd","disorder ocd","disorder ptsd","disorders","display","displayed","displays","disrupted","disruption","dissociable","dissociate","dissociated","dissociation","distance","distinction","distinguish","distinguished","distraction","distractor","distractors","distress","distributed","distributed network","distribution","disturbances","disturbed","divergent","diverse","divided","dlpfc","dmn","dmpfc","documented","does","domain","domain general","domains","dominance","dominant","dopamine","dopaminergic","dorsal","dorsal anterior","dorsal attention","dorsal medial","dorsal premotor","dorsal striatum","dorsal ventral","dorsolateral","dorsolateral pfc","dorsolateral prefrontal","dorsomedial","dorsomedial prefrontal","dose","dot","double","double blind","drive","driven","driving","drug","drugs","dti","dual","duration","dynamic","dynamically","dynamic causal","dynamics","dysfunction","dysfunctional","dysfunctions","dyslexia","dysregulation","earlier","early","early stage","early stages","early visual","easy","eating","echo","economic","education","eeg","effect","effective","effective connectivity","effectively","effects","efficacy","efficiency","efficient","effort","effortful","eighteen","elderly","electrical","electroencephalography","electroencephalography eeg","electrophysiological","elements","elevated","elicit","elicited","elicits","elucidate","elucidated","elusive","embedded","emerge","emerged","emergence","emerging","emission","emission tomography","emotion","emotional","emotional faces","emotional information","emotionally","emotional responses","emotional stimuli","emotional valence","emotion regulation","emotions","empathic","empathy","emphasize","empirical","employed","employing","enable","enabled","enables","encode","encoded","encoding","encoding retrieval","encompassing","end","endogenous","engage","engaged","engagement","engages","engaging","english","enhance","enhancement","enhances","enhancing","entire","environment","environmental","environments","epilepsy","episode","episodes","episodic","episodic memory","equal","equally","equivalent","erp","error","errors","especially","essential","establish","established","estimate","estimated","estimates","estimation","et","et al","evaluate","evaluated","evaluating","evaluation","evaluations","event","event design","event functional","event potential","event potentials","events","everyday","everyday life","evidence","evidenced","evidence suggests","evident","evoke","evoked","evolution","exact","examination","examining","example","excessive","exclusively","executed","execution","executive","executive control","executive function","executive functions","exert","exhibit","exhibited","exhibited greater","exhibiting","exist","existence","existing","exists","expectancy","expectation","expectations","expected","experience","experienced","experiences","experiencing","experiment","experimental","experimental conditions","experimentally","experiments","expertise","explain","explained","explanation","explicit","explicitly","exploration","exploratory","explore","explored","exploring","exposed","exposure","expressed","expression","expressions","extend","extended","extending","extends","extension","extensive","extensively","extent","external","externally","extinction","extra","extract","extracted","extrastriate","eye","eye field","eye fields","eye movement","eye movements","eyes","fa","face","face ffa","face recognition","faces","facial","facial expression","facial expressions","facilitate","facilitated","facilitates","facilitation","fact","factor","factorial","factorial design","factors","failed","failure","false","familiar","familiarity","family","far","fasciculus","fashion","fast","faster","fc","fear","fearful","fearful faces","feature","features","feedback","feeling","feelings","female","females","fewer","ffa","fiber","field","fields","final","finally","fine","finger","finger movements","finger tapping","fixation","fixed","flexibility","flexible","flexibly","flow","fluctuation","fluctuations","fluency","focal","foci","focus","focused","focusing","follow","followed","following","food","foot","force","form","formation","formed","forms","forward","fourteen","fractional","fractional anisotropy","framework","free","frequencies","frequency","frequency fluctuations","frequent","frequently","frontal","frontal cortex","frontal cortices","frontal eye","frontal gyri","frontal gyrus","frontal lobe","frontal lobes","frontal operculum","frontal parietal","frontal temporal","fronto","fronto parietal","frontoparietal","frontoparietal network","frontopolar","fronto striatal","fronto temporal","frontotemporal","fully","function","functional abnormalities","functional connections","functional connectivity","functional coupling","functionally","functionally connected","functional magnetic","functional network","functional networks","functional neuroanatomy","functional organization","functional role","functional structural","functioning","functions","fundamental","furthermore","fusiform","fusiform face","fusiform gyri","fusiform gyrus","future","gain","gains","gambling","game","gamma","ganglia","gap","gaze","gender","gene","general","generalized","general linear","generally","generate","generated","generating","generation","genes","genetic","genetic risk","genotype","german","gestures","given","global","globus","globus pallidus","gm","gm volume","goal","goal directed","goals","good","gradient","granger","graph","grasping","gray","gray matter","great","greater","greater extent","greatest","grey","grey matter","group","group comparisons","group healthy","group level","groups","growing","guide","guided","gyri","gyrus","gyrus anterior","gyrus ba","gyrus cerebellum","gyrus ifg","gyrus inferior","gyrus insula","gyrus medial","gyrus mfg","gyrus middle","gyrus posterior","gyrus precuneus","gyrus stg","gyrus superior","half","hand","handed","handedness","hand movements","hands","happy","happy faces","having","hc","hcs","head","health","healthy","healthy adults","healthy control","healthy controls","healthy handed","healthy human","healthy individuals","healthy male","healthy volunteers","healthy young","heard","hearing","heart","heart rate","heightened","held","help","hemisphere","hemispheres","hemispheric","hemodynamic","hemodynamic response","hemodynamic responses","heschl","heschl gyrus","heterogeneity","heterogeneous","hierarchical","hierarchy","high","higher","higher level","higher levels","higher order","highest","high frequency","high functioning","high level","highlight","highlighted","highlights","high low","highly","high resolution","high risk","hippocampal","hippocampus","history","hoc","homogeneity","homogeneity reho","hub","hubs","hum","human","humans","hum mapp","hyperactivation","hyperactivity","hyperactivity disorder","hypoactivation","hypothalamus","hypotheses","hypothesize","hypothesized","hz","ica","idea","identical","identification","identified","identify","identifying","identity","ifg","ii","iii","illness","illusion","illustrate","image","imagery","images","images acquired","imagine","imagined","imitation","immediate","immediately","impact","impacts","impaired","impairment","impairments","implementation","implemented","implicate","implicated","implications","implications understanding","implicit","imply","importance","important","importantly","important role","improve","improved","improvement","improvements","improves","impulsive","impulsivity","incentive","incentive delay","incidental","include","included","includes","incongruent","inconsistent","incorrect","increases","increasing","increasingly","independent","independent component","independently","index","indexed","index finger","indicate","indicated","indicates","indicating","indices","indirect","individual","individually","individuals","individual variability","induce","induced","induces","inducing","induction","infer","inference","inferences","inferior","inferior frontal","inferior middle","inferior occipital","inferior parietal","inferior prefrontal","inferior superior","inferior temporal","influence","influenced","influences","inform","information","inhibit","inhibition","inhibitory","inhibitory control","initial","initially","initiation","injury","input","inputs","insight","insights","instead","instructed","instruction","instructions","insula","insula anterior","insula inferior","insular","insular cortex","intact","integrate","integrated","integrating","integration","integrative","integrity","intelligence","intense","intensity","intention","intentional","intentions","inter","interact","interacting","interaction","interactions","interactive","interacts","interestingly","interference","interhemispheric","inter individual","intermediate","internal","internally","interoceptive","interpersonal","interplay","interpret","interpretation","interpreted","interval","intervals","intervention","interventions","intra","intraparietal","intraparietal sulcus","intrinsic","intrinsic functional","introduced","introduction","invariant","invasive","inventory","inverse","inversely","investigates","investigating","investigation","investigations","involve","involved","involved cognitive","involvement","involves","involving","ipl","ips","ipsilateral","iq","irrelevant","irrespective","isolate","isolated","issue","issues","item","items","iv","joint","judge","judged","judgment","judgments","judgment task","junction","junction tpj","just","key","key role","kinds","know","knowledge","known","known involved","labeling","laboratory","lack","lacking","language","language comprehension","language network","languages","large","largely","largely unknown","larger","large sample","large scale","late","latencies","latency","later","lateral","lateral frontal","laterality","lateralization","lateralized","lateral medial","lateral occipital","lateral orbitofrontal","lateral parietal","lateral prefrontal","lateral temporal","lead","leading","leads","learn","learned","learning","learning task","led","length","lesion","lesions","lesser","letter","letters","level","level bold","levels","level signal","lexical","lexical decision","life","light","like","likelihood","likely","limb","limbic","limitations","limited","line","linear","linearly","linear model","lingual","lingual gyrus","linguistic","link","linked","linking","links","list","listened","listening","literature","little","little known","load","lobe","lobe mtl","lobes","lobule","lobule ipl","lobules","local","localization","localize","localized","located","location","locations","locus","long","longer","longitudinal","long term","loop","loss","losses","low","lower","low frequency","low high","low level","m1","machine","magnetic","magnetic resonance","magnetic stimulation","magnetoencephalography","magnitude","main","main effect","mainly","maintain","maintained","maintaining","maintenance","major","major depression","major depressive","majority","make","making","male","male female","males","manifest","manipulated","manipulating","manipulation","manipulations","manner","manual","map","mapp","mapped","mapping","maps","marked","marker","markers","masked","mass","match","matching","matching task","material","materials","matrix","matter","matter density","matter gm","matter volume","matter volumes","maturation","maximal","maximum","mci","mdd","mean","mean age","meaning","meaningful","means","measure","measurement","measurements","measures","measuring","mechanism","mechanisms","mechanisms involved","mechanisms underlying","medial","medial frontal","medial lateral","medial orbitofrontal","medial pfc","medial prefrontal","medial superior","medial temporal","median","mediate","mediated","mediates","mediating","medication","meg","memories","memory","memory encoding","memory load","memory performance","memory processes","memory retrieval","memory task","memory tasks","memory test","memory wm","men","mental","mental imagery","mentalizing","mental state","mental states","men women","mesial","mesolimbic","met","metabolic","metabolism","method","methodological","methodology","methodology principal","methods","methods functional","mfg","mg","mid","midbrain","middle","middle cingulate","middle frontal","middle inferior","middle occipital","middle superior","middle temporal","midline","mild","mild cognitive","min","mind","mind tom","minimal","mirror","mirror neuron","mixed","mm","mnemonic","modal","modalities","modality","mode","model","modeling","models","mode network","moderate","modified","modulate","modulated","modulates","modulating","modulation","modulations","modulatory","monetary","monetary incentive","monetary reward","money","monitor","monitored","monitoring","monkey","monkeys","months","mood","moral","morphological","morphology","morphometry","morphometry vbm","motion","motivation","motivational","motor","motor control","motor cortex","motor function","motor imagery","motor network","motor performance","motor pre","motor premotor","motor response","motor responses","motor sma","motor task","movement","movements","moving","mpfc","mr","ms","mt","mtg","mtl","multi","multimodal","multiple","multiple comparisons","multiple sclerosis","multisensory","multivariate","multivariate pattern","muscle","music","musical","musicians","naive","names","naming","native","natural","naturalistic","nature","navigation","near","necessary","need","needed","needs","negative","negative affect","negative correlation","negative correlations","negative emotional","negative emotions","negative feedback","negatively","negatively correlated","negative neutral","negative positive","negativity","neocortical","nerve","nervous","network","network connectivity","network dmn","network involved","networks","networks involved","neuro","neuroanatomical","neuroanatomy","neurobiological","neurobiology","neurocognitive","neurodegenerative","neurodevelopmental","neurofunctional","neurological","neuron","neuronal","neurons","neurophysiological","neuropsychiatric","neuropsychological","neuroscience","neutral","neutral faces","neutral pictures","neutral stimuli","new","new insights","newly","nineteen","nociceptive","node","nodes","nogo","noise","non","normal","normal controls","normalized","normally","notably","noted","notion","nouns","novel","novelty","noxious","nuclei","nucleus","nucleus accumbens","number","numbers","numerical","numerous","object","objective","objectives","object recognition","objects","observation","observations","observer","observers","observing","obsessive","obsessive compulsive","obtain","obtained","occipital","occipital cortex","occipital gyrus","occipital lobe","occipital parietal","occipital temporal","occipito","occipito temporal","occipitotemporal","occipitotemporal cortex","occur","occurred","occurrence","occurring","occurs","ocd","oddball","ofc","offer","offers","old","older","older adults","olfactory","ones","ongoing","online","onset","open","operation","operations","opercular","opercularis","operculum","opportunity","opposed","opposite","optimal","optimized","options","oral","orbital","orbitofrontal","orbitofrontal cortex","order","organization","organized","orientation","oriented","orienting","origin","original","orthographic","oscillations","outcome","outcomes","output","outside","outside scanner","overall","overcome","overlap","overlapped","overlapping","overt","oxygen","oxygenation","oxygenation level","oxygen level","paced","pain","painful","pair","paired","pairs","pallidus","paper","paradigm","paradigms","parahippocampal","parahippocampal cortex","parahippocampal gyrus","parahippocampus","paralimbic","parallel","parameter","parameters","parametric","parametrically","parametric mapping","parietal","parietal cortex","parietal cortices","parietal frontal","parietal junction","parietal lobe","parietal lobes","parietal lobule","parietal lobules","parietal network","parietal occipital","parietal temporal","parieto","parieto occipital","parkinson","parkinson disease","pars","pars opercularis","partial","partially","participant","participate","participated","particular","particularly","partly","partner","parts","passive","passively","passive viewing","past","pathological","pathology","pathophysiological","pathophysiology","pathway","pathways","patient","patient group","patient groups","pattern","patterns","pcc","pd","peak","people","perceive","perceived","perceiving","percept","perception","perceptual","perform","performance","performances","performance task","performing","perfusion","periaqueductal","period","periodicals","periods","peripheral","persistent","person","personal","personality","personality traits","persons","perspective","pet","pfc","pharmacological","phase","phases","phenomena","phenomenon","phenotype","phonological","photographs","physical","physiological","picture","pictures","pitch","place","placebo","placebo controlled","planning","planum","planum temporale","plasticity","play","played","play important","playing","play role","plays","plays important","plays role","pleasant","point","pointing","points","pole","polymorphism","poor","poorer","poorly","poorly understood","population","populations","portion","portions","position","positive","positive correlation","positive correlations","positively","positively correlated","positive negative","positron","positron emission","possibility","possible","possibly","post","postcentral","postcentral gyrus","posterior","posterior anterior","posterior cingulate","posterior inferior","posterior insula","posterior middle","posterior parietal","posterior superior","posterior temporal","post hoc","posttraumatic","potential","potentially","potentials","power","powerful","ppc","ppi","practice","pre","preceded","preceding","precentral","precentral gyrus","precise","precuneus","precuneus posterior","predict","predicted","predicting","prediction","prediction error","predictions","predictive","predictors","predicts","predominantly","preference","preferences","preferential","preferentially","prefrontal","prefrontal cortex","prefrontal cortical","prefrontal cortices","prefrontal parietal","preliminary","premotor","premotor cortex","preparation","preparatory","pre post","presence","presentation","presentations","presented","presenting","preserved","pre sma","press","pressure","presumably","pre supplementary","previous","previous functional","previous reports","previous research","previous shown","previous work","primarily","primary","primary auditory","primary motor","primary secondary","primary sensorimotor","primary somatosensory","primary visual","primates","prime","priming","principal","principle","prior","priori","probabilistic","probability","probably","probe","problem","problems","procedure","procedures","process","processed","processes","processes involved","processes underlying","produce","produced","producing","production","profile","profiles","progression","progressive","prolonged","prominent","promising","pronounced","proper","properties","proportion","propose","proposed","prospective","protocol","provide","provided","provide evidence","provide new","provide novel","provides","provides evidence","providing","pseudowords","psts","psychiatric","psychiatric disorders","psychological","psychopathology","psychophysical","psychophysiological","psychophysiological interaction","psychosis","psychotic","ptsd","published","punishment","pure","purpose","putamen","putative","quality","quantified","quantify","quantitative","question","questionnaire","questions","random","random effects","randomized","randomly","range","ranging","rapid","rapidly","rare","rarely","rate","rated","rates","rating","ratings","ratio","rationale","reach","reaching","reaction","reactions","reaction time","reaction times","reactivity","read","readers","reading","real","reality","real time","real world","reappraisal","reasoning","recall","receive","received","receiving","recently","receptor","recognition","recognition memory","recognition task","recognize","recognized","recognizing","recollection","recorded","recording","recordings","recovery","recruit","recruited","recruitment","recruits","reduce","reduces","reducing","reduction","reductions","reference","referential","referred","refers","reflect","reflected","reflecting","reflects","regard","regarding","regardless","regional","regional cerebral","regional gray","regional homogeneity","regular","regulate","regulating","regulation","regulatory","rehabilitation","rehearsal","reho","reinforcement","reinforcement learning","relate","relates","relation","relational","relations","relationship","relationships","relatively","relevance","relevant","relevant information","reliability","reliable","reliably","reliance","relied","relies","rely","remain","remained","remaining","remain unclear","remarkably","remember","remembered","remembering","remote","reorganization","repeat","repeated","repeatedly","repetition","repetition suppression","repetitive","replicate","replicated","report","reported","reports","represent","representation","representational","representations","represented","representing","represents","require","required","requirements","requires","requiring","research","researchers","research suggests","residual","resolution","resolve","resonance","resonance experiment","resonance healthy","resonance images","resonance measure","resonance performing","resonance rs","resonance scans","resources","respect","respective","respectively","respond","responded","responding","responds","response","response inhibition","responses","response selection","response time","response times","responsible","responsive","responsiveness","rest","resting","resting state","restricted","result","resulted","resulting","retention","retrieval","retrieved","retrosplenial","retrosplenial cortex","reveal","revealing","reveals","reversal","reverse","reversed","reward","reward anticipation","rewarding","rewards","rhythm","rich","rise","risk","risk taking","risky","robust","roi","rois","role","roles","rostral","rostral anterior","rotation","rs","rsfc","rt","rule","rules","run","runs","s1","saccade","saccades","sad","salience","salience network","salient","sample","samples","sampling","scale","scales","scalp","scan","scanned","scanned using","scanner","scanning","scans","scene","scenes","schizophrenia","schizophrenic","sclerosis","score","scores","sd","se","search","second","secondary","secondary somatosensory","sectional","seed","seeds","seeking","seen","segregated","segregation","select","selected","selection","selective","selective attention","selectively","selectivity","self","self referential","self report","self reported","semantic","semantically","semantic memory","semantics","sensation","sensations","sense","sensitive","sensitivity","sensorimotor","sensorimotor cortex","sensorimotor network","sensory","sensory information","sensory motor","sentence","sentence comprehension","sentences","separable","separate","separated","separately","separation","sequence","sequences","sequential","serial","series","serotonin","serve","served","serves","session","sessions","set","sets","setting","settings","seven","seventeen","severe","severity","sex","sexual","sham","shape","shaped","shapes","share","shared","shed","shed light","shift","shifted","shifting","shifts","short","shorter","short term","showing","shown","shows","si","sided","sighted","sign","signal","signal change","signaling","signals","signal task","signature","significance","significance statement","signs","sii","silent","similarities","similarity","similarly","simple","simply","simulated","simulation","simultaneous","simultaneous eeg","simultaneously","single","single subject","single trial","site","sites","situation","situations","sixteen","size","sizes","skill","skills","skin","skin conductance","sleep","slow","slower","sma","small","smaller","smokers","smoking","sn","social","social cognition","social cognitive","social interaction","social interactions","socially","software","solving","somatosensory","somatosensory cortex","somatosensory cortices","sought","sound","sounds","source","sources","space","span","sparse","spatial","spatial attention","spatial information","spatially","spatial temporal","spatiotemporal","speaker","speakers","speaking","special","specialization","specialized","species","specifically","specificity","specified","spectral","spectrum","spectrum disorder","spectrum disorders","speech","speech perception","speech production","speed","spin","spinal","spin labeling","spl","spoken","spontaneous","stable","stage","stages","standard","standardized","state","state connectivity","state functional","statement","state networks","states","static","statistics","status","step","stg","stimulated","stimulation","stimulation tms","stimuli","stimuli presented","stimulus","stimulus driven","stimulus response","stop","stop signal","storage","stored","strategic","strategies","strategy","stream","streams","strength","stress","stress disorder","striatal","striatum","striking","stroke","strong","strongest","strongly","stroop","stroop task","structural","structural functional","structural magnetic","structure","structure function","structures","structures involved","sts","students","studied","studying","sub","subcortical","subcortical structures","subgenual","subject","subjective","subregions","subsequent","subsequently","subsequent memory","subserve","subserved","subserving","subset","substance","substantia","substantial","substantially","substrate","substrates","subtle","subtraction","success","successful","successfully","successive","suffering","sufficient","suggest","suggested","suggest functional","suggesting","suggests","sulci","sulcus","sulcus ips","sulcus sts","sum","summary","superior","superior frontal","superior inferior","superior middle","superior parietal","superior temporal","supplementary","supplementary motor","supported","supporting","supports","suppressed","suppression","supramarginal","supramarginal gyrus","surface","surprisingly","surrounding","susceptibility","sustained","sustained attention","switch","switching","symbolic","symptom","symptoms","symptom severity","synchronization","syndrome","syntactic","systematic","systematically","systems","systems involved","t1","t1 weighted","tactile","taken","taken suggest","taking","tapping","target","target detection","targeted","targets","task","task conditions","task demands","task difficulty","task functional","task induced","task involving","task irrelevant","task performance","task positive","task relevant","task required","tasks","task task","task using","taste","td","technique","techniques","tegmental","temporal","temporal cortex","temporal cortices","temporale","temporal frontal","temporal gyri","temporal gyrus","temporal inferior","temporal lobe","temporal lobes","temporally","temporal occipital","temporal parietal","temporal pole","temporal sulcus","temporo","temporo parietal","temporoparietal","temporoparietal junction","tend","tendency","tensor","tensor dti","term","term memory","terms","tesla","test","tested","testing","tests","thalamic","thalamus","theoretical","theories","theory","theory mind","therapeutic","therapy","thickness","thinking","thirteen","thirty","thought","thoughts","threat","threatening","threshold","time","time course","time courses","time points","times","time series","time task","timing","tissue","tms","tom","tomography","tomography pet","tone","tones","took","tool","tools","total","touch","tpj","track","tracking","tract","tractography","tracts","traditional","traditionally","trained","training","trait","traits","trajectories","transcranial","transcranial magnetic","transfer","transformation","transient","transition","trauma","traumatic","treated","treatment","treatments","trend","trial","trials","trial trial","trigger","triggered","true","turn","twice","type","types","typical","typically","typically developing","unaffected","uncertain","uncertainty","unclear","undergoing","undergoing functional","underlie","underlies","underlying","underlying mechanisms","underpinning","underpinnings","understand","understanding","understood","unexpected","unfamiliar","unilateral","unimodal","unique","uniquely","univariate","unknown","unlike","unmedicated","unpleasant","unrelated","upcoming","updating","upper","use","useful","use functional","users","uses","using","using event","using functional","using resting","using voxel","usually","utility","utilized","v1","v5","valence","valid","validated","validity","valuable","value","values","variability","variable","variables","variance","variant","variation","variations","varied","varies","variety","various","vary","varying","vbm","vector","ventral","ventral anterior","ventral dorsal","ventral medial","ventral premotor","ventral striatum","ventral tegmental","ventral visual","ventrolateral","ventrolateral prefrontal","ventromedial","ventromedial prefrontal","verb","verbal","verbal fluency","verbal working","verbs","vermis","version","versus","vi","video","video clips","videos","view","viewed","viewing","violations","virtual","vision","visual","visual attention","visual auditory","visual cortex","visual cortices","visual field","visual information","visually","visually presented","visual motion","visual perception","visual stimuli","visual stimulus","visual stream","visual word","visuo","visuomotor","visuo spatial","visuospatial","vivo","vlpfc","vmpfc","vocal","voice","volume","volumes","volumetric","voluntary","volunteers","voxel","voxel morphometry","voxels","voxel wise","voxelwise","vs","vulnerability","watched","watching","way","ways","weak","weaker","week","weeks","weight","weighted","whilst","white","white matter","wide","widely","widespread","wiley","wiley periodicals","window","wise","wm","wm task","women","word","word form","word pairs","word recognition","words","work","working","working memory","world","worse","written","year","year old","years","years old","yield","yielded","young","young adults","younger","younger adults","young healthy","young older","youth","zone"];
+    
+    // 備用 Demo 資料（用於其他功能的示範）
+    const DEMO_TERMS_FALLBACK = ["amygdala","prefrontal","hippocampus","cortex","thalamus","emotion","memory","attention","learning","cognition","motor","visual","auditory","language","executive","working memory","decision making","reward","fear","anxiety","depression","stress","pain","social","empathy"];
+    
+    const DEMO_TERM_DATA = {
+      "amygdala": {
+        "term": "amygdala",
+        "studies": 1234,
+        "description": "杏仁核 - 與情緒處理和記憶相關的大腦結構",
+        "related_terms": ["emotion", "fear", "anxiety", "memory"],
+        "coordinates": { "x": -20, "y": -8, "z": -12 }
+      }
+    };
+    
+    const DEMO_STUDIES = {
+      "results": [
+        {
+          "id": "study_001",
+          "title": "Amygdala activation during emotional processing",
+          "year": 2020,
+          "authors": "Smith et al."
+        },
+        {
+          "id": "study_002", 
+          "title": "Neural correlates of fear conditioning",
+          "year": 2021,
+          "authors": "Johnson et al."
+        }
+      ],
+      "count": 2
+    };
+    
+    // 防抖函數
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    // 更新 API 狀態顯示
+    function updateAPIStatus(status) {
+      const statusEl = document.getElementById('apiStatus');
+      const warningEl = document.getElementById('apiWarning');
+      
+      if (status === 'online') {
+        statusEl.innerHTML = 'API CONNECTED';
+        statusEl.className = 'px-4 py-1.5 rounded bg-cyan-900/60 border border-cyan-500/60 text-cyan-300 text-xs tracking-wide backdrop-blur-sm';
+        warningEl.classList.add('hidden');
+      } else if (status === 'offline') {
+        statusEl.innerHTML = 'DEMO MODE';
+        statusEl.className = 'px-4 py-1.5 rounded bg-amber-900/60 border border-amber-500/60 text-amber-300 text-xs tracking-wide backdrop-blur-sm';
+        warningEl.classList.remove('hidden');
+      } else {
+        statusEl.innerHTML = 'CONNECTING...';
+        statusEl.className = 'px-4 py-1.5 rounded bg-slate-800/60 border border-cyan-500/30 text-cyan-400/70 text-xs tracking-wide backdrop-blur-sm';
+      }
+    }
+
+    // 檢查 API 是否可用
+    async function checkAPIAvailability() {
+      if (apiCheckDone) return useRealAPI;
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(`${API_BASE}/terms`, { 
+          signal: controller.signal,
+          mode: 'cors'
+        });
+        
+        clearTimeout(timeoutId);
+        apiCheckDone = true;
+        
+        if (response.ok) {
+          useRealAPI = true;
+          updateAPIStatus('online');
+          return true;
+        } else {
+          useRealAPI = false;
+          updateAPIStatus('offline');
+          return false;
+        }
+      } catch (error) {
+        console.warn('API 不可用，使用示範資料:', error.message);
+        useRealAPI = false;
+        apiCheckDone = true;
+        updateAPIStatus('offline');
+        return false;
+      }
+    }
+
+    // 帶逾時的 fetch 函數
+    async function fetchWithTimeout(url, timeout = 15000) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      try {
+        const response = await fetch(url, { 
+          signal: controller.signal,
+          mode: 'cors'
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error('請求逾時 - API 伺服器回應緩慢');
+        }
+        throw error;
+      }
+    }
+
+    // ========================================
+    // 功能 1: 載入所有術語（優化版 + 預載入）
+    // ========================================
+    
+    // 全域變數：用於漸進式載入
+    let allTermsData = ALL_NEURAL_TERMS; // 直接使用完整列表！
+    let currentDisplayCount = 0;
+    let isLoadingMore = false;
+    
+    // 預載入術語（立即顯示前 30 個）
+    function preloadTerms() {
+      const container = document.getElementById('termsList');
+      
+      container.innerHTML = `
+        <div class="mb-6 flex items-center justify-between">
+          <div class="text-sm text-cyan-400/70 tracking-wide">
+            ✓ PRELOADED · ${ALL_NEURAL_TERMS.length} TERMS
+          </div>
+          <div class="text-xs text-cyan-500/50 tracking-wide uppercase">
+            <span id="termCounter">30</span> / ${ALL_NEURAL_TERMS.length} · Auto-loading...
+          </div>
+        </div>
+        <div id="termsGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+          <!-- Preload terms for instant display -->
+        </div>
+        <div id="loadMoreIndicator" class="text-center py-6 text-cyan-400/50 text-sm tracking-wide">
+          <div class="animate-pulse">↓ LOADING MORE...</div>
+        </div>
+      `;
+      
+      const grid = document.getElementById('termsGrid');
+      const fragment = document.createDocumentFragment();
+      
+      // 預載入前 30 個術語（立即顯示）
+      const initialCount = Math.min(30, ALL_NEURAL_TERMS.length);
+      for (let i = 0; i < initialCount; i++) {
+        const term = ALL_NEURAL_TERMS[i];
+        const div = document.createElement('div');
+        div.className = 'term-card bg-slate-900/70 p-4 rounded cursor-pointer backdrop-blur-sm';
+        div.onclick = () => searchSpecificTerm(term);
+        div.innerHTML = `
+          <p class="text-lg font-light text-cyan-200 tracking-wide break-words leading-relaxed" title="${term}">
+            ${term}
+          </p>
+        `;
+        fragment.appendChild(div);
+      }
+      
+      grid.appendChild(fragment);
+      currentDisplayCount = initialCount;
+      
+      // 立即開始漸進載入剩餘術語
+      startProgressiveLoading();
+    }
+    
+    // 漸進式載入剩餘術語
+    function startProgressiveLoading() {
+      const grid = document.getElementById('termsGrid');
+      const totalTerms = ALL_NEURAL_TERMS.length;
+      let loadIndex = currentDisplayCount;
+      
+      // 每 150ms 載入 30 個術語
+      const loadInterval = setInterval(() => {
+        if (loadIndex >= totalTerms) {
+          clearInterval(loadInterval);
+          document.getElementById('loadMoreIndicator').classList.add('hidden');
+          return;
+        }
+        
+        const nextBatch = Math.min(30, totalTerms - loadIndex);
+        renderBatchOfTerms(ALL_NEURAL_TERMS, loadIndex, loadIndex + nextBatch, grid);
+        loadIndex += nextBatch;
+        currentDisplayCount = loadIndex;
+        
+        // 更新計數器
+        const counter = document.getElementById('termCounter');
+        if (counter) {
+          counter.textContent = loadIndex;
+        }
+        
+        // 如果載入完成，隱藏載入提示
+        if (loadIndex >= totalTerms) {
+          clearInterval(loadInterval);
+          setTimeout(() => {
+            document.getElementById('loadMoreIndicator').classList.add('hidden');
+          }, 300);
+        }
+      }, 150); // 每 150ms 一批，速度更快
+    }
+    
+    async function loadAllTerms() {
+      // 直接使用預載入的術語列表，無需 API 呼叫！
+      console.log(`使用預載入的 ${ALL_NEURAL_TERMS.length} 個神經術語`);
+      allTermsData = ALL_NEURAL_TERMS;
+      updateAPIStatus('online');
+    }
+    
+    // 保留舊的 API 載入函數（備用）
+    async function loadAllTermsFromAPI() {
+      const container = document.getElementById('termsList');
+      const startTime = Date.now();
+      
+      // 檢查快取
+      const now = Date.now();
+      if (cachedTerms && cacheTimestamp && (now - cacheTimestamp < CACHE_DURATION)) {
+        console.log('使用快取資料');
+        allTermsData = cachedTerms;
+        renderTermsProgressively(cachedTerms, container, startTime, true);
+        return;
+      }
+      
+      // 在背景檢查 API（不阻塞顯示）
+      const apiCheckPromise = checkAPIAvailability();
+      
+      try {
+        let terms = [];
+        const apiAvailable = await apiCheckPromise;
+        
+        if (apiAvailable) {
+          // 嘗試使用真實 API（給 5 秒時間）
+          const response = await fetchWithTimeout(`${API_BASE}/terms`, 5000);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          if (Array.isArray(data)) {
+            terms = data;
+          } else if (data.terms && Array.isArray(data.terms)) {
+            terms = data.terms;
+          } else {
+            terms = Object.keys(data);
+          }
+          
+          // 快取結果
+          cachedTerms = terms;
+          cacheTimestamp = Date.now();
+        } else {
+          // 使用示範資料
+          terms = DEMO_TERMS;
+        }
+        
+        allTermsData = terms;
+        renderTermsProgressively(terms, container, startTime, apiAvailable);
+        
+      } catch (error) {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.error('載入失敗:', error);
+        
+        // 降級使用示範資料
+        useRealAPI = false;
+        updateAPIStatus('offline');
+        allTermsData = DEMO_TERMS;
+        renderTermsProgressively(DEMO_TERMS, container, startTime, false, error.message);
+      }
+    }
+    
+    // 渲染術語（漸進式載入版本）
+    function renderTermsProgressively(terms, container, startTime, apiAvailable, errorMsg = null) {
+      const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      terms = terms.filter(term => typeof term === 'string' && term.trim().length > 0);
+      
+      if (terms.length === 0) {
+        container.innerHTML = '<p class="text-cyan-500/50 text-center tracking-wide uppercase">NO TERMS FOUND</p>';
+        return;
+      }
+      
+      // 初始化：清空容器並設置標題
+      container.innerHTML = `
+        <div class="mb-4 flex items-center justify-between">
+          <div class="text-sm text-cyan-400/70 tracking-wide">
+            ${apiAvailable ? '✓' : '◎'} ${apiAvailable ? 'API DATA' : 'DEMO DATA'} · ${terms.length} TERMS · ${loadTime}s
+          </div>
+          <div class="text-xs text-cyan-500/50 tracking-wide uppercase">
+            <span id="termCounter">20</span> / ${terms.length} · Scroll for more
+          </div>
+        </div>
+        ${errorMsg ? `<div class="mb-4 bg-amber-900/40 border border-amber-500/40 p-2 rounded text-xs text-amber-300 tracking-wide">⚠ ${errorMsg}</div>` : ''}
+        <div id="termsGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <!-- Terms will be progressively loaded here -->
+        </div>
+        <div id="loadMoreIndicator" class="text-center py-6 text-cyan-400/50 text-sm tracking-wide hidden">
+          <div class="animate-pulse">↓ LOADING MORE...</div>
+        </div>
+      `;
+      
+      const grid = document.getElementById('termsGrid');
+      
+      // 第一批：立即顯示前 20 個（快速呈現）
+      const initialBatch = Math.min(20, terms.length);
+      renderBatchOfTerms(terms, 0, initialBatch, grid);
+      currentDisplayCount = initialBatch;
+      
+      // 自動漸進載入後續資料（每 200ms 載入 20 個）
+      let loadIndex = initialBatch;
+      const autoLoadInterval = setInterval(() => {
+        if (loadIndex >= terms.length) {
+          clearInterval(autoLoadInterval);
+          document.getElementById('loadMoreIndicator').classList.add('hidden');
+          return;
+        }
+        
+        const nextBatch = Math.min(20, terms.length - loadIndex);
+        renderBatchOfTerms(terms, loadIndex, loadIndex + nextBatch, grid);
+        loadIndex += nextBatch;
+        currentDisplayCount = loadIndex;
+        
+        // 更新計數器
+        document.getElementById('termCounter').textContent = loadIndex;
+        
+        // 如果載入完成，隱藏載入提示
+        if (loadIndex >= terms.length) {
+          document.getElementById('loadMoreIndicator').classList.add('hidden');
+        }
+      }, 200); // 每 200ms 載入一批
+      
+      // 顯示載入提示
+      if (terms.length > initialBatch) {
+        document.getElementById('loadMoreIndicator').classList.remove('hidden');
+      }
+    }
+    
+    // 渲染一批術語卡片
+    function renderBatchOfTerms(terms, startIndex, endIndex, grid) {
+      const fragment = document.createDocumentFragment();
+      
+      for (let i = startIndex; i < endIndex; i++) {
+        if (i >= terms.length) break;
+        
+        const term = terms[i];
+        const safeTerm = String(term).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        
+        const div = document.createElement('div');
+        div.className = 'term-card bg-slate-900/70 p-4 rounded cursor-pointer backdrop-blur-sm';
+        div.style.opacity = '0';
+        div.style.transform = 'translateY(20px)';
+        div.onclick = () => searchSpecificTerm(safeTerm);
+        div.innerHTML = `
+          <p class="text-lg font-light text-cyan-200 tracking-wide break-words leading-relaxed" title="${term}">
+            ${term}
+          </p>
+        `;
+        
+        fragment.appendChild(div);
+      }
+      
+      grid.appendChild(fragment);
+      
+      // 淡入動畫
+      requestAnimationFrame(() => {
+        const newCards = grid.querySelectorAll('.term-card');
+        for (let i = startIndex; i < endIndex && i < newCards.length; i++) {
+          const card = newCards[i];
+          if (card) {
+            card.style.transition = 'all 0.4s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+          }
+        }
+      });
+    }
+    
+    // 舊的渲染函數（保留作為備用）
+    function renderTerms(terms, container, startTime, apiAvailable, errorMsg = null) {
+      const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      terms = terms.filter(term => typeof term === 'string' && term.trim().length > 0);
+      
+      if (terms.length === 0) {
+        container.innerHTML = '<p class="text-cyan-500/50 text-center tracking-wide uppercase">NO TERMS FOUND</p>';
+        return;
+      }
+      
+      // 只顯示前 50 個（從 100 降到 50，渲染速度加倍）
+      const displayCount = Math.min(terms.length, 50);
+      
+      // 先顯示標題和統計
+      container.innerHTML = `
+        <div class="mb-4 flex items-center justify-between">
+          <div class="text-sm text-cyan-400/70 tracking-wide">
+            ${apiAvailable ? '✓' : '◎'} ${apiAvailable ? 'API DATA' : 'DEMO DATA'} · ${terms.length} TERMS · ${loadTime}s
+            ${displayCount < terms.length ? `<span class="text-cyan-600/50 ml-2">· Showing first ${displayCount}</span>` : ''}
+          </div>
+          <div class="text-xs text-cyan-500/50 tracking-wide uppercase">
+            Click to query
+          </div>
+        </div>
+        ${errorMsg ? `<div class="mb-4 bg-amber-900/40 border border-amber-500/40 p-2 rounded text-xs text-amber-300 tracking-wide">⚠ ${errorMsg}</div>` : ''}
+        <div id="termsGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <!-- Terms will be rendered here -->
+        </div>
+      `;
+      
+      const grid = document.getElementById('termsGrid');
+      
+      // 分批渲染（每批 10 個，避免阻塞 UI）
+      const batchSize = 10;
+      let currentIndex = 0;
+      
+      function renderBatch() {
+        const fragment = document.createDocumentFragment();
+        const endIndex = Math.min(currentIndex + batchSize, displayCount);
+        
+        for (let i = currentIndex; i < endIndex; i++) {
+          const term = terms[i];
+          const safeTerm = String(term).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+          
+          const div = document.createElement('div');
+          div.className = 'term-card bg-slate-900/70 p-3 rounded-sm cursor-pointer backdrop-blur-sm';
+          div.onclick = () => searchSpecificTerm(safeTerm);
+          div.innerHTML = `
+            <p class="text-sm font-light text-cyan-200 truncate tracking-wide uppercase" title="${term}">
+              ${term}
+            </p>
+          `;
+          
+          fragment.appendChild(div);
+        }
+        
+        grid.appendChild(fragment);
+        currentIndex = endIndex;
+        
+        // 如果還有更多，繼續下一批
+        if (currentIndex < displayCount) {
+          requestAnimationFrame(renderBatch);
+        }
+      }
+      
+      // 開始渲染（添加淡入動畫效果）
+      grid.style.opacity = '0';
+      requestAnimationFrame(() => {
+        renderBatch();
+        grid.style.transition = 'opacity 0.3s ease-in';
+        grid.style.opacity = '1';
+      });
+    }
+
+    // 點擊術語卡片時，自動填入搜尋框
+    function searchSpecificTerm(term) {
+      const searchBox = document.getElementById('termSearch');
+      searchBox.value = term;
+      searchBox.focus();
+      searchTerm(term);
+    }
+
+    // ========================================
+    // 自動完成功能
+    // ========================================
+    let currentFocus = -1;
+    
+    function showAutocomplete(input) {
+      const val = input.value.trim().toLowerCase();
+      const autocompleteList = document.getElementById('autocompleteList');
+      
+      // 如果輸入少於 2 個字元，隱藏建議
+      if (val.length < 2) {
+        autocompleteList.classList.add('hidden');
+        return;
+      }
+      
+      // 搜尋匹配的術語（最多顯示 10 個）
+      // 優先顯示以輸入文字開頭的術語
+      const startsWithMatches = ALL_NEURAL_TERMS.filter(term => 
+        term.toLowerCase().startsWith(val)
+      );
+      
+      const containsMatches = ALL_NEURAL_TERMS.filter(term => 
+        !term.toLowerCase().startsWith(val) && term.toLowerCase().includes(val)
+      );
+      
+      // 合併結果：先顯示開頭匹配，再顯示包含匹配
+      const matches = [...startsWithMatches, ...containsMatches].slice(0, 10);
+      
+      // 如果沒有匹配，隱藏建議
+      if (matches.length === 0) {
+        autocompleteList.classList.add('hidden');
+        return;
+      }
+      
+      // 顯示建議列表
+      autocompleteList.innerHTML = '';
+      autocompleteList.classList.remove('hidden');
+      
+      matches.forEach((term, index) => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item text-cyan-300/80 text-sm';
+        
+        // 高亮匹配的部分
+        const regex = new RegExp(`(${val})`, 'gi');
+        const highlightedText = term.replace(regex, '<span class="autocomplete-match">$1</span>');
+        item.innerHTML = highlightedText;
+        
+        // 點擊建議項目
+        item.addEventListener('click', function() {
+          input.value = term;
+          autocompleteList.classList.add('hidden');
+          searchTerm(term);
+        });
+        
+        autocompleteList.appendChild(item);
+      });
+      
+      currentFocus = -1;
+    }
+    
+    // 鍵盤導航支援
+    function handleAutocompleteKeydown(e, input) {
+      const autocompleteList = document.getElementById('autocompleteList');
+      let items = autocompleteList.getElementsByClassName('autocomplete-item');
+      
+      if (items.length === 0) return;
+      
+      if (e.keyCode === 40) { // 向下鍵
+        e.preventDefault();
+        currentFocus++;
+        addActive(items);
+      } else if (e.keyCode === 38) { // 向上鍵
+        e.preventDefault();
+        currentFocus--;
+        addActive(items);
+      } else if (e.keyCode === 13) { // Enter 鍵
+        e.preventDefault();
+        if (currentFocus > -1 && items[currentFocus]) {
+          items[currentFocus].click();
+        }
+      } else if (e.keyCode === 27) { // ESC 鍵
+        autocompleteList.classList.add('hidden');
+        currentFocus = -1;
+      }
+    }
+    
+    function addActive(items) {
+      if (!items || items.length === 0) return;
+      removeActive(items);
+      
+      if (currentFocus >= items.length) currentFocus = 0;
+      if (currentFocus < 0) currentFocus = items.length - 1;
+      
+      items[currentFocus].classList.add('active');
+      items[currentFocus].scrollIntoView({ block: 'nearest' });
+    }
+    
+    function removeActive(items) {
+      for (let i = 0; i < items.length; i++) {
+        items[i].classList.remove('active');
+      }
+    }
+    
+    // 點擊外部時關閉建議列表
+    document.addEventListener('click', function(e) {
+      const autocompleteList = document.getElementById('autocompleteList');
+      const queryAutocompleteList = document.getElementById('queryAutocompleteList');
+      const termSearch = document.getElementById('termSearch');
+      const queryInput = document.getElementById('queryInput');
+      
+      if (e.target !== termSearch && e.target !== autocompleteList) {
+        autocompleteList.classList.add('hidden');
+      }
+      if (e.target !== queryInput && e.target !== queryAutocompleteList) {
+        queryAutocompleteList.classList.add('hidden');
+      }
+    });
+
+    // ========================================
+    // Research Query 自動完成功能
+    // ========================================
+    let queryCurrentFocus = -1;
+    
+    function showQueryAutocomplete(input) {
+      const val = input.value.trim();
+      const autocompleteList = document.getElementById('queryAutocompleteList');
+      
+      // 如果輸入為空，隱藏建議
+      if (val.length === 0) {
+        autocompleteList.classList.add('hidden');
+        return;
+      }
+      
+      // 找出當前游標位置的單詞
+      const cursorPos = input.selectionStart;
+      const textBeforeCursor = val.substring(0, cursorPos);
+      
+      // 分割文字，找出最後一個單詞（排除 and/or/not）
+      const words = textBeforeCursor.split(/\s+/);
+      const currentWord = words[words.length - 1].toLowerCase();
+      
+      // 如果當前單詞是操作符或太短，不顯示建議
+      if (currentWord.length < 2 || ['and', 'or', 'not'].includes(currentWord)) {
+        autocompleteList.classList.add('hidden');
+        return;
+      }
+      
+      // 搜尋匹配的術語（最多顯示 8 個）
+      // 優先顯示以輸入文字開頭的術語
+      const startsWithMatches = ALL_NEURAL_TERMS.filter(term => 
+        term.toLowerCase().startsWith(currentWord)
+      );
+      
+      const containsMatches = ALL_NEURAL_TERMS.filter(term => 
+        !term.toLowerCase().startsWith(currentWord) && term.toLowerCase().includes(currentWord)
+      );
+      
+      // 合併結果：先顯示開頭匹配，再顯示包含匹配
+      const matches = [...startsWithMatches, ...containsMatches].slice(0, 8);
+      
+      // 如果沒有匹配，隱藏建議
+      if (matches.length === 0) {
+        autocompleteList.classList.add('hidden');
+        return;
+      }
+      
+      // 顯示建議列表
+      autocompleteList.innerHTML = '';
+      autocompleteList.classList.remove('hidden');
+      
+      matches.forEach((term, index) => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item text-cyan-300/80 text-sm';
+        
+        // 高亮匹配的部分
+        const regex = new RegExp(`(${currentWord})`, 'gi');
+        const highlightedText = term.replace(regex, '<span class="autocomplete-match">$1</span>');
+        item.innerHTML = highlightedText;
+        
+        // 點擊建議項目
+        item.addEventListener('click', function() {
+          // 替換當前單詞
+          const textBeforeCursor = input.value.substring(0, cursorPos);
+          const textAfterCursor = input.value.substring(cursorPos);
+          const wordsBeforeCursor = textBeforeCursor.split(/\s+/);
+          wordsBeforeCursor[wordsBeforeCursor.length - 1] = term;
+          
+          input.value = wordsBeforeCursor.join(' ') + textAfterCursor;
+          
+          // 設置游標位置
+          const newCursorPos = wordsBeforeCursor.join(' ').length;
+          input.setSelectionRange(newCursorPos, newCursorPos);
+          
+          autocompleteList.classList.add('hidden');
+          input.focus();
+          
+          // 觸發搜尋
+          debouncedSearchStudies(input.value);
+        });
+        
+        autocompleteList.appendChild(item);
+      });
+      
+      queryCurrentFocus = -1;
+    }
+    
+    // Research Query 鍵盤導航
+    function handleQueryAutocompleteKeydown(e, input) {
+      const autocompleteList = document.getElementById('queryAutocompleteList');
+      let items = autocompleteList.getElementsByClassName('autocomplete-item');
+      
+      if (items.length === 0) return;
+      
+      if (e.keyCode === 40) { // 向下鍵
+        e.preventDefault();
+        queryCurrentFocus++;
+        addQueryActive(items);
+      } else if (e.keyCode === 38) { // 向上鍵
+        e.preventDefault();
+        queryCurrentFocus--;
+        addQueryActive(items);
+      } else if (e.keyCode === 13) { // Enter 鍵
+        if (queryCurrentFocus > -1 && items[queryCurrentFocus]) {
+          e.preventDefault();
+          items[queryCurrentFocus].click();
+        }
+      } else if (e.keyCode === 27) { // ESC 鍵
+        autocompleteList.classList.add('hidden');
+        queryCurrentFocus = -1;
+      }
+    }
+    
+    function addQueryActive(items) {
+      if (!items || items.length === 0) return;
+      removeQueryActive(items);
+      
+      if (queryCurrentFocus >= items.length) queryCurrentFocus = 0;
+      if (queryCurrentFocus < 0) queryCurrentFocus = items.length - 1;
+      
+      items[queryCurrentFocus].classList.add('active');
+      items[queryCurrentFocus].scrollIntoView({ block: 'nearest' });
+    }
+    
+    function removeQueryActive(items) {
+      for (let i = 0; i < items.length; i++) {
+        items[i].classList.remove('active');
+      }
+    }
+
+    // ========================================
+    // 功能 2: AJAX 即時查詢術語
+    // ========================================
+    async function searchTerm(term) {
+      const container = document.getElementById('termResultContainer');
+      
+      if (!term || term.trim().length === 0) {
+        container.innerHTML = '<p class="text-cyan-500/50 text-center tracking-wide">Start typing to view term information...</p>';
+        return;
+      }
+      
+      const startTime = Date.now();
+      container.innerHTML = `
+        <div class="text-cyan-400/70 loading text-center py-4 tracking-wide">
+          <div class="text-xl mb-2">◈</div>
+          <div class="uppercase">SEARCHING...</div>
+        </div>
+      `;
+      
+      try {
+        let data;
+        
+        if (useRealAPI) {
+          const response = await fetchWithTimeout(
+            `${API_BASE}/terms/${encodeURIComponent(term.trim())}`,
+            20000  // 增加到 20 秒逾時
+          );
+          
+          if (!response.ok) {
+            throw new Error(response.status === 404 ? '找不到此術語' : `HTTP ${response.status}`);
+          }
+          
+          data = await response.json();
+        } else {
+          // 使用示範資料
+          await new Promise(resolve => setTimeout(resolve, 300)); // 模擬延遲
+          data = DEMO_TERM_DATA[term.toLowerCase()] || {
+            term: term,
+            message: "Demo data. Real API provides more detailed information.",
+            studies: Math.floor(Math.random() * 1000) + 100
+          };
+        }
+        
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        // 格式化顯示結果
+        let resultHTML = `
+          <div class="space-y-4">
+            ${!useRealAPI ? '<div class="bg-amber-900/40 border border-amber-500/40 p-2 rounded text-xs text-amber-300 mb-2 tracking-wide uppercase">◎ DEMO DATA</div>' : ''}
+            
+            <!-- 術語標題 -->
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-cyan-500/30">
+              <div class="flex items-center gap-3">
+                <span class="text-3xl text-cyan-400">◈</span>
+                <h3 class="text-3xl font-light text-cyan-200 tracking-wider uppercase">${data.term || term}</h3>
+              </div>
+              <span class="text-sm text-cyan-500/60 bg-slate-900/50 px-3 py-1.5 rounded">${loadTime}s</span>
+            </div>
+        `;
+        
+        // 顯示研究數量
+        if (data.studies !== undefined) {
+          resultHTML += `
+            <div class="bg-cyan-500/10 border border-cyan-500/30 rounded p-5">
+              <div class="text-base text-cyan-400/70 uppercase tracking-wider mb-2">Studies Found</div>
+              <div class="text-4xl font-light text-cyan-300">${data.studies.toLocaleString()}</div>
+            </div>
+          `;
+        }
+        
+        // 顯示相關術語
+        if (data.related && data.related.length > 0) {
+          resultHTML += `
+            <div class="space-y-3">
+              <h4 class="text-xl text-cyan-300/90 uppercase tracking-wider flex items-center gap-2">
+                <span class="text-cyan-400">◇</span>
+                Related Terms
+              </h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          `;
+          
+          data.related.forEach(rel => {
+            const jaccard = (rel.jaccard * 100).toFixed(1);
+            resultHTML += `
+              <div class="bg-slate-900/60 border border-cyan-500/20 rounded p-4 hover:border-cyan-400/40 hover:bg-slate-800/60 transition-all">
+                <div class="flex items-start justify-between mb-2">
+                  <div class="text-cyan-200 font-light text-xl break-words">${rel.term}</div>
+                  <div class="text-cyan-400/70 text-base ml-2 whitespace-nowrap">${jaccard}%</div>
+                </div>
+                <div class="flex items-center gap-4 text-base">
+                  <div class="text-cyan-500/60">
+                    <span class="text-cyan-400/50">Co-occurrence:</span> ${rel.co_count.toLocaleString()}
+                  </div>
+                </div>
+                <div class="mt-2 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-cyan-500/60 to-cyan-400/80 rounded-full transition-all" 
+                       style="width: ${jaccard}%"></div>
+                </div>
+              </div>
+            `;
+          });
+          
+          resultHTML += `
+              </div>
+            </div>
+          `;
+        }
+        
+        // 顯示其他資訊
+        if (data.message) {
+          resultHTML += `
+            <div class="bg-slate-900/40 border border-cyan-500/20 rounded p-3">
+              <div class="text-sm text-cyan-400/70">${data.message}</div>
+            </div>
+          `;
+        }
+        
+        resultHTML += '</div>';
+        container.innerHTML = resultHTML;
+        
+      } catch (error) {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        container.innerHTML = `
+          <div class="text-center py-4">
+            <span class="text-4xl text-red-400/80">✕</span>
+            <p class="text-red-400/80 font-light mt-2 tracking-wide uppercase">${error.message}</p>
+            <p class="text-cyan-500/60 text-sm mt-1 tracking-wide">Please check term spelling</p>
+            <p class="text-xs text-cyan-600/50 mt-1">${loadTime}s</p>
+          </div>
+        `;
+      }
+    }
+
+    const debouncedSearchTerm = debounce(searchTerm, 500);
+
+    // ========================================
+    // 功能 3: AJAX 即時搜尋研究
+    // ========================================
+    
+    // 將使用者查詢標準化為 API 格式
+    function convertQueryToAPIFormat(query) {
+      // Neurosynth API 使用空格分隔的 and/or/not 語法
+      // 官方範例：amygdala not emotion
+      // 不需要特殊轉換，直接使用小寫的 and/or/not 即可
+      
+      let apiQuery = query.trim();
+      
+      // 將所有操作符轉換為小寫（API 格式）
+      // 保留空格，這是 Neurosynth API 的標準格式
+      apiQuery = apiQuery.replace(/\s+AND\s+/gi, ' and ');
+      apiQuery = apiQuery.replace(/\s+OR\s+/gi, ' or ');
+      apiQuery = apiQuery.replace(/\s+NOT\s+/gi, ' not ');
+      
+      // 清理多餘空格
+      apiQuery = apiQuery.replace(/\s+/g, ' ').trim();
+      
+      return apiQuery;
+    }
+    
+    async function searchStudies(query) {
+      const container = document.getElementById('queryResult');
+      
+      if (!query || query.trim().length === 0) {
+        container.innerHTML = '<p class="text-cyan-500/50 text-center tracking-wide">Start typing query to view related studies...</p>';
+        return;
+      }
+      
+      const startTime = Date.now();
+      container.innerHTML = `
+        <div class="text-cyan-400/70 loading text-center py-4 tracking-wide">
+          <div class="text-xl mb-2">◈</div>
+          <div class="uppercase">SEARCHING STUDIES...</div>
+        </div>
+      `;
+      
+      try {
+        let data;
+        
+        // 轉換查詢格式
+        const apiQuery = convertQueryToAPIFormat(query);
+        
+        if (useRealAPI) {
+          const response = await fetchWithTimeout(
+            `${API_BASE}/query/${encodeURIComponent(apiQuery)}/studies`,
+            10000
+          );
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          
+          data = await response.json();
+        } else {
+          // 使用示範資料
+          await new Promise(resolve => setTimeout(resolve, 500));
+          data = DEMO_STUDIES;
+        }
+        
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        let studyCount = 0;
+        let results = [];
+        
+        // 解析不同格式的回應
+        if (Array.isArray(data)) {
+          results = data;
+          studyCount = data.length;
+        } else if (data.results && Array.isArray(data.results)) {
+          results = data.results;
+          studyCount = data.count || results.length;
+        } else if (data.studies && Array.isArray(data.studies)) {
+          results = data.studies;
+          studyCount = results.length;
+        }
+        
+        // 格式化顯示結果
+        let resultHTML = `
+          <div class="space-y-4">
+            ${!useRealAPI ? '<div class="bg-amber-900/40 border border-amber-500/40 p-2 rounded text-xs text-amber-300 mb-2 tracking-wide uppercase">◎ DEMO DATA</div>' : ''}
+            
+            <!-- 搜尋資訊標題 -->
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-cyan-500/30">
+              <div class="space-y-1">
+                <div class="flex items-center gap-3">
+                  <span class="text-3xl text-cyan-400">◆</span>
+                  <h3 class="text-3xl font-light text-cyan-200 tracking-wider uppercase">
+                    ${studyCount.toLocaleString()} Studies Found
+                  </h3>
+                </div>
+                <div class="text-base text-cyan-500/60 ml-10">
+                  Query: <span class="font-mono text-cyan-400/80">${query}</span>
+                  ${query !== apiQuery ? `<span class="text-cyan-600/50"> → ${apiQuery}</span>` : ''}
+                </div>
+              </div>
+              <span class="text-sm text-cyan-500/60 bg-slate-900/50 px-3 py-1.5 rounded">${loadTime}s</span>
+            </div>
+        `;
+        
+        // 顯示研究列表
+        if (results.length > 0) {
+          resultHTML += `
+            <div class="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+          `;
+          
+          results.forEach((study, index) => {
+            const year = study.year || 'N/A';
+            const authors = study.authors || 'Unknown authors';
+            const title = study.title || 'Untitled study';
+            const journal = study.journal || '';
+            const studyId = study.study_id || study.id || '';
+            
+            resultHTML += `
+              <div class="bg-slate-900/60 border border-cyan-500/20 rounded p-4 hover:border-cyan-400/40 hover:bg-slate-800/60 transition-all">
+                <!-- 標題和年份 -->
+                <div class="flex items-start justify-between gap-3 mb-2">
+                  <h4 class="text-cyan-200 font-light text-lg leading-relaxed flex-1 break-words">
+                    ${title}
+                  </h4>
+                  <span class="text-cyan-400/70 font-mono text-base whitespace-nowrap bg-slate-800/60 px-2.5 py-1 rounded">
+                    ${year}
+                  </span>
+                </div>
+                
+                <!-- 作者 -->
+                <div class="text-base text-cyan-300/60 mb-2 break-words">
+                  <span class="text-cyan-400/40">Authors:</span> ${authors}
+                </div>
+                
+                <!-- 期刊 -->
+                ${journal ? `
+                <div class="text-base text-cyan-400/50 italic mb-2 break-words">
+                  ${journal}
+                </div>
+                ` : ''}
+                
+                <!-- Study ID -->
+                ${studyId ? `
+                <div class="flex items-center gap-2 mt-3 pt-2 border-t border-cyan-500/10">
+                  <span class="text-sm text-cyan-500/40">ID:</span>
+                  <span class="text-sm font-mono text-cyan-400/60 bg-slate-800/40 px-2 py-1 rounded">${studyId}</span>
+                </div>
+                ` : ''}
+              </div>
+            `;
+          });
+          
+          resultHTML += `
+            </div>
+          `;
+        } else {
+          resultHTML += `
+            <div class="bg-slate-900/40 border border-cyan-500/20 rounded p-6 text-center">
+              <div class="text-cyan-400/50 text-lg mb-2">◇</div>
+              <div class="text-cyan-400/70">No studies found for this query</div>
+            </div>
+          `;
+        }
+        
+        resultHTML += '</div>';
+        container.innerHTML = resultHTML;
+        
+      } catch (error) {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        container.innerHTML = `
+          <div class="text-center py-4">
+            <span class="text-4xl text-red-400/80">✕</span>
+            <p class="text-red-400/80 font-light mt-2 tracking-wide uppercase">SEARCH FAILED</p>
+            <p class="text-cyan-500/60 text-sm mt-1 tracking-wide">${error.message}</p>
+            <p class="text-xs text-cyan-600/50 mt-1">${loadTime}s</p>
+          </div>
+        `;
+      }
+    }
+
+    const debouncedSearchStudies = debounce(searchStudies, 500);
+
+    // 重新連線
+    function retryConnection() {
+      apiCheckDone = false;
+      useRealAPI = true;
+      updateAPIStatus('checking');
+      loadAllTerms();
+    }
+
+    // ========================================
+    // Tab 切換功能
+    // ========================================
+    function switchTab(tabId) {
+      // 隱藏所有 tab 內容
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      
+      // 移除所有 tab 按鈕的 active 狀態
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+      });
+      
+      // 顯示選中的 tab
+      document.getElementById(tabId).classList.add('active');
+      
+      // 激活對應的 tab 按鈕
+      document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+      
+      // 如果切換到 tab1 且還沒載入資料，則載入
+      if (tabId === 'tab1' && currentDisplayCount === 0) {
+        preloadTerms();
+      }
+    }
+
+    // ========================================
+    // 事件監聽器
+    // ========================================
+    
+    // 頁面載入時立即顯示預載入的術語
+    document.addEventListener('DOMContentLoaded', function() {
+      // 立即預載入前 30 個術語（0 延遲，瞬間顯示）
+      preloadTerms();
+      
+      // 標記 API 狀態
+      updateAPIStatus('online');
+    });
+
+    // document.getElementById('refreshTerms').addEventListener('click', loadAllTerms);
+    
+    // Term Search 輸入框事件
+    const termSearchInput = document.getElementById('termSearch');
+    
+    termSearchInput.addEventListener('input', function(e) {
+      showAutocomplete(e.target);
+      debouncedSearchTerm(e.target.value);
+    });
+    
+    termSearchInput.addEventListener('keydown', function(e) {
+      handleAutocompleteKeydown(e, e.target);
+    });
+    
+    // Query Input 事件
+    const queryInputElement = document.getElementById('queryInput');
+    
+    queryInputElement.addEventListener('input', function(e) {
+      showQueryAutocomplete(e.target);
+      debouncedSearchStudies(e.target.value);
+    });
+    
+    queryInputElement.addEventListener('keydown', function(e) {
+      handleQueryAutocompleteKeydown(e, e.target);
+    });
+
+  </script>
+
+</body>
+</html>
