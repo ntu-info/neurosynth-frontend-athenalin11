@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neurosynth Explorer - 神經科學術語查詢系統</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    /* 自訂樣式 */
+    .term-card {
+      transition: all 0.3s ease;
+    }
+    .term-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .loading {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  
+  <!-- 導航列 -->
+  <nav class="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
+    <div class="container mx-auto px-4 py-4">
+      <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold flex items-center">
+          🧠 Neurosynth Explorer
+        </h1>
+        <div class="text-sm">
+          神經科學術語查詢系統
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 主要內容 -->
+  <main class="container mx-auto px-4 py-8 max-w-7xl">
+    
+    <!-- 區塊 1: 所有術語列表 -->
+    <section class="mb-12">
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+            📋 所有可用術語
+          </h2>
+          <button 
+            id="refreshTerms" 
+            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition duration-200 flex items-center gap-2"
+          >
+            🔄 重新載入
+          </button>
+        </div>
+        
+        <div id="allTermsContainer" class="min-h-32">
+          <div class="text-gray-500 loading text-center py-8">
+            載入中...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 區塊 2: 術語即時查詢 (AJAX) -->
+    <section class="mb-12">
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+          🔍 術語即時查詢
+          <span class="ml-3 text-sm font-normal text-gray-500">(邊輸入邊查詢)</span>
+        </h2>
+        
+        <div class="mb-4">
+          <label for="termSearch" class="block text-sm font-medium text-gray-700 mb-2">
+            輸入術語名稱
+          </label>
+          <input 
+            type="text" 
+            id="termSearch" 
+            placeholder="例如: amygdala, prefrontal, hippocampus..."
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+          />
+          <p class="mt-2 text-xs text-gray-500">
+            💡 提示：開始輸入即可看到結果，不需要按 Enter
+          </p>
+        </div>
+        
+        <div id="termResultContainer" class="mt-6 p-4 bg-gray-50 rounded-lg min-h-32">
+          <p class="text-gray-400 text-center">開始輸入以查看術語資訊...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 區塊 3: 研究搜尋 (AJAX) -->
+    <section class="mb-12">
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+          🔬 研究邏輯搜尋
+          <span class="ml-3 text-sm font-normal text-gray-500">(支援 AND/OR/NOT)</span>
+        </h2>
+        
+        <div class="mb-4">
+          <label for="querySearch" class="block text-sm font-medium text-gray-700 mb-2">
+            輸入搜尋條件
+          </label>
+          <input 
+            type="text" 
+            id="querySearch" 
+            placeholder="例如: amygdala not emotion, memory and learning..."
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
+          />
+          <div class="mt-2 text-xs text-gray-500">
+            <p class="mb-1">💡 提示：開始輸入即可看到結果</p>
+            <p>📖 語法：使用 <code class="bg-gray-200 px-1 rounded">and</code>、<code class="bg-gray-200 px-1 rounded">or</code>、<code class="bg-gray-200 px-1 rounded">not</code> 組合查詢條件</p>
+          </div>
+        </div>
+        
+        <div id="queryResultContainer" class="mt-6 p-4 bg-gray-50 rounded-lg min-h-32">
+          <p class="text-gray-400 text-center">開始輸入搜尋條件以查看相關研究...</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 頁尾 -->
+  <footer class="bg-gray-800 text-white py-6 mt-12">
+    <div class="container mx-auto px-4 text-center">
+      <p class="text-sm">
+        🧠 Neurosynth Explorer | API: 
+        <a href="https://mil.psy.ntu.edu.tw:5000" target="_blank" class="text-blue-400 hover:text-blue-300">
+          https://mil.psy.ntu.edu.tw:5000
+        </a>
+      </p>
+    </div>
+  </footer>
+
+  <!-- JavaScript -->
+  <script>
+    // API 基礎網址
+    const API_BASE = 'https://mil.psy.ntu.edu.tw:5000';
+    
+    // 防抖函數（避免發送太多請求）
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    // 帶逾時的 fetch 函數
+    async function fetchWithTimeout(url, timeout = 10000) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error('請求逾時（超過 10 秒）');
+        }
+        throw error;
+      }
+    }
+
+    // ========================================
+    // 功能 1: 載入所有術語
+    // ========================================
+    async function loadAllTerms() {
+      const container = document.getElementById('allTermsContainer');
+      const startTime = Date.now();
+      
+      container.innerHTML = `
+        <div class="text-gray-500 loading text-center py-8">
+          <div class="text-2xl mb-2">⏳</div>
+          <div>載入中...（這可能需要幾秒鐘）</div>
+          <div class="text-xs mt-2">正在從伺服器獲取資料...</div>
+        </div>
+      `;
+      
+      try {
+        const response = await fetchWithTimeout(`${API_BASE}/terms`, 15000);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        console.log('API 回應資料:', data);
+        console.log('資料類型:', typeof data);
+        console.log('是否為陣列:', Array.isArray(data));
+        
+        // 更智慧的資料解析
+        let terms = [];
+        
+        if (Array.isArray(data)) {
+          // 如果直接是陣列
+          terms = data;
+        } else if (typeof data === 'object' && data !== null) {
+          // 如果是物件，嘗試多種可能的屬性名稱
+          if (data.terms && Array.isArray(data.terms)) {
+            terms = data.terms;
+          } else if (data.data && Array.isArray(data.data)) {
+            terms = data.data;
+          } else if (data.results && Array.isArray(data.results)) {
+            terms = data.results;
+          } else {
+            // 取出所有的 key 作為術語
+            terms = Object.keys(data);
+          }
+        }
+        
+        // 過濾掉非字串的項目
+        terms = terms.filter(term => typeof term === 'string' && term.trim().length > 0);
+        
+        if (terms.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-8">
+              <span class="text-4xl">📭</span>
+              <p class="text-gray-500 mt-2">沒有找到術語</p>
+              <details class="mt-4 text-left">
+                <summary class="cursor-pointer text-blue-500 hover:text-blue-600">查看原始回應</summary>
+                <pre class="mt-2 p-4 bg-gray-100 rounded text-xs overflow-x-auto">${JSON.stringify(data, null, 2)}</pre>
+              </details>
+            </div>
+          `;
+          return;
+        }
+        
+        // 顯示術語（使用卡片樣式）
+        const displayCount = Math.min(terms.length, 100); // 顯示最多 100 個
+        container.innerHTML = `
+          <div class="mb-4 flex items-center justify-between">
+            <div class="text-sm text-gray-600">
+              ✅ 成功載入 ${terms.length} 個術語（${loadTime} 秒）
+            </div>
+            <div class="text-xs text-gray-500">
+              點擊任一術語快速查詢
+            </div>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            ${terms.slice(0, displayCount).map(term => {
+              const safeTerm = String(term).replace(/'/g, "\\'");
+              return `
+                <div class="term-card bg-gradient-to-br from-blue-50 to-purple-50 p-3 rounded-lg border border-gray-200 cursor-pointer hover:border-blue-400"
+                     onclick="searchSpecificTerm('${safeTerm}')">
+                  <p class="text-sm font-medium text-gray-800 truncate" title="${term}">
+                    ${term}
+                  </p>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          ${terms.length > displayCount ? `
+            <p class="text-center text-gray-500 mt-4 text-sm">
+              顯示前 ${displayCount} 個術語（共 ${terms.length} 個）
+            </p>
+          ` : ''}
+        `;
+        
+      } catch (error) {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.error('載入術語失敗:', error);
+        
+        container.innerHTML = `
+          <div class="text-center py-8">
+            <span class="text-4xl">❌</span>
+            <p class="font-semibold text-red-500 mt-2">載入失敗</p>
+            <p class="text-sm text-gray-600 mt-2">${error.message}</p>
+            <p class="text-xs text-gray-400 mt-1">耗時: ${loadTime} 秒</p>
+            
+            <div class="mt-4 space-y-2">
+              <button 
+                onclick="loadAllTerms()" 
+                class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition"
+              >
+                🔄 重試
+              </button>
+              
+              <details class="mt-4">
+                <summary class="cursor-pointer text-blue-500 hover:text-blue-600 text-sm">
+                  查看錯誤詳情
+                </summary>
+                <div class="mt-2 p-4 bg-gray-100 rounded text-left text-xs">
+                  <p><strong>錯誤訊息:</strong> ${error.message}</p>
+                  <p class="mt-2"><strong>可能原因:</strong></p>
+                  <ul class="list-disc list-inside mt-1 text-gray-600">
+                    <li>API 伺服器回應緩慢</li>
+                    <li>網路連線問題</li>
+                    <li>CORS 設定問題</li>
+                    <li>API 伺服器暫時無法使用</li>
+                  </ul>
+                  <p class="mt-2"><strong>API 端點:</strong> ${API_BASE}/terms</p>
+                </div>
+              </details>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // 點擊術語卡片時，自動填入搜尋框
+    function searchSpecificTerm(term) {
+      const searchBox = document.getElementById('termSearch');
+      searchBox.value = term;
+      searchBox.focus();
+      // 觸發搜尋
+      searchTerm(term);
+    }
+
+    // ========================================
+    // 功能 2: AJAX 即時查詢術語
+    // ========================================
+    async function searchTerm(term) {
+      const container = document.getElementById('termResultContainer');
+      
+      if (!term || term.trim().length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center">開始輸入以查看術語資訊...</p>';
+        return;
+      }
+      
+      const startTime = Date.now();
+      container.innerHTML = `
+        <div class="text-gray-500 loading text-center py-4">
+          <div class="text-xl mb-2">🔍</div>
+          <div>查詢中...</div>
+        </div>
+      `;
+      
+      try {
+        const response = await fetchWithTimeout(
+          `${API_BASE}/terms/${encodeURIComponent(term.trim())}`,
+          8000
+        );
+        
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        if (!response.ok) {
+          throw new Error(response.status === 404 ? '找不到此術語' : `HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // 美化顯示結果
+        container.innerHTML = `
+          <div class="space-y-3">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">✅</span>
+                <h3 class="text-xl font-bold text-green-600">找到術語：${term}</h3>
+              </div>
+              <span class="text-xs text-gray-400">${loadTime} 秒</span>
+            </div>
+            <div class="bg-white p-4 rounded-lg border border-gray-200">
+              <pre class="text-sm text-gray-700 overflow-x-auto max-h-96">${JSON.stringify(data, null, 2)}</pre>
+            </div>
+          </div>
+        `;
+        
+      } catch (error) {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        container.innerHTML = `
+          <div class="text-center py-4">
+            <span class="text-4xl">❌</span>
+            <p class="text-red-500 font-semibold mt-2">${error.message}</p>
+            <p class="text-gray-500 text-sm mt-1">請檢查術語拼寫是否正確</p>
+            <p class="text-xs text-gray-400 mt-1">耗時: ${loadTime} 秒</p>
+          </div>
+        `;
+      }
+    }
+
+    // 防抖版本的搜尋函數
+    const debouncedSearchTerm = debounce(searchTerm, 500);
+
+    // ========================================
+    // 功能 3: AJAX 即時搜尋研究
+    // ========================================
+    async function searchStudies(query) {
+      const container = document.getElementById('queryResultContainer');
+      
+      if (!query || query.trim().length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center">開始輸入搜尋條件以查看相關研究...</p>';
+        return;
+      }
+      
+      const startTime = Date.now();
+      container.innerHTML = `
+        <div class="text-gray-500 loading text-center py-4">
+          <div class="text-xl mb-2">🔬</div>
+          <div>搜尋中...</div>
+        </div>
+      `;
+      
+      try {
+        const response = await fetchWithTimeout(
+          `${API_BASE}/query/${encodeURIComponent(query.trim())}/studies`,
+          10000
+        );
+        
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('搜尋結果:', data);
+        
+        // 處理搜尋結果
+        let studies = [];
+        let studyCount = 0;
+        
+        if (Array.isArray(data)) {
+          studies = data;
+          studyCount = data.length;
+        } else if (data.studies && Array.isArray(data.studies)) {
+          studies = data.studies;
+          studyCount = studies.length;
+        } else if (typeof data === 'object') {
+          // 檢查是否有 count 或 total 屬性
+          studyCount = data.count || data.total || 0;
+        }
+        
+        if (studyCount === 0 && studies.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-4">
+              <span class="text-4xl">🔍</span>
+              <p class="text-gray-500 font-semibold mt-2">沒有找到符合條件的研究</p>
+              <p class="text-gray-400 text-sm mt-1">嘗試修改搜尋條件</p>
+              <p class="text-xs text-gray-400 mt-1">耗時: ${loadTime} 秒</p>
+              
+              <details class="mt-4">
+                <summary class="cursor-pointer text-blue-500 hover:text-blue-600 text-sm">
+                  查看原始回應
+                </summary>
+                <pre class="mt-2 p-4 bg-gray-100 rounded text-xs overflow-x-auto text-left">${JSON.stringify(data, null, 2)}</pre>
+              </details>
+            </div>
+          `;
+          return;
+        }
+        
+        // 顯示搜尋結果
+        container.innerHTML = `
+          <div class="space-y-3">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">📚</span>
+                <h3 class="text-xl font-bold text-purple-600">
+                  找到 ${studyCount > 0 ? studyCount : studies.length} 個研究
+                </h3>
+              </div>
+              <span class="text-xs text-gray-400">${loadTime} 秒</span>
+            </div>
+            <div class="bg-white p-4 rounded-lg border border-gray-200">
+              <pre class="text-sm text-gray-700 overflow-x-auto max-h-96">${JSON.stringify(data, null, 2)}</pre>
+            </div>
+          </div>
+        `;
+        
+      } catch (error) {
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        container.innerHTML = `
+          <div class="text-center py-4">
+            <span class="text-4xl">⚠️</span>
+            <p class="text-red-500 font-semibold mt-2">搜尋失敗</p>
+            <p class="text-gray-500 text-sm mt-1">${error.message}</p>
+            <p class="text-xs text-gray-400 mt-1">耗時: ${loadTime} 秒</p>
+          </div>
+        `;
+      }
+    }
+
+    // 防抖版本的搜尋函數
+    const debouncedSearchStudies = debounce(searchStudies, 500);
+
+    // ========================================
+    // 事件監聽器
+    // ========================================
+    
+    // 頁面載入時，自動載入所有術語
+    document.addEventListener('DOMContentLoaded', function() {
+      loadAllTerms();
+    });
+
+    // 重新載入按鈕
+    document.getElementById('refreshTerms').addEventListener('click', loadAllTerms);
+
+    // 術語搜尋框 - AJAX 即時查詢
+    document.getElementById('termSearch').addEventListener('input', function(e) {
+      debouncedSearchTerm(e.target.value);
+    });
+
+    // 研究搜尋框 - AJAX 即時查詢
+    document.getElementById('querySearch').addEventListener('input', function(e) {
+      debouncedSearchStudies(e.target.value);
+    });
+
+  </script>
+
+</body>
+</html>
+
